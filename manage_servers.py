@@ -1,4 +1,4 @@
-# manage_servers.py 파일 (업데이트 버전)
+# manage_servers.py - 새로운 파일 구조에 맞게 수정된 버전
 
 import subprocess
 import os
@@ -7,9 +7,13 @@ import time
 import signal
 
 # 현재 스크립트가 실행되는 디렉토리를 기준으로 파일 경로 설정
+# 이 스크립트가 'chatbot_backend' 폴더와 같은 위치에 있다고 가정합니다.
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MAIN_PY_PATH = os.path.join(BASE_DIR, "main.py")
-APP_PY_PATH = os.path.join(BASE_DIR, "app.py")
+
+# FastAPI 앱의 경로와 Streamlit 앱의 경로를 설정합니다.
+# Streamlit 앱은 이 스크립트와 같은 디렉토리에 있다고 가정합니다.
+# FastAPI 앱은 'chatbot_backend' 폴더 안에 있습니다.
+STREAMLIT_APP_PATH = os.path.join(BASE_DIR, "app.py")
 
 # 가상 환경의 python 실행 파일 경로를 사용 (스크립트 실행 시 활성화된 가상 환경의 python)
 PYTHON_EXECUTABLE = sys.executable
@@ -19,16 +23,17 @@ streamlit_process = None
 
 
 def get_pid_on_port(port):
-    """지정된 포트를 사용하는 프로세스 ID (PID)를 찾습니다."""
+    """
+    지정된 포트를 사용하는 프로세스 ID (PID)를 찾습니다.
+    Windows와 Unix-like 시스템 모두에서 동작합니다.
+    """
     if sys.platform == "win32":
         try:
-            # netstat -ano 명령을 사용하여 포트와 PID를 찾음
-            # findstr로 해당 포트 라인 필터링
-            # "LISTENING" 상태인 경우만 고려
+            # netstat -ano 명령을 사용하여 포트와 PID를 찾고, "LISTENING" 상태인 경우만 필터링합니다.
             cmd = f'netstat -ano | findstr LISTEN | findstr :{port}'
             output = subprocess.check_output(cmd, shell=True, text=True, encoding='cp949', errors='ignore')
 
-            # 출력에서 PID 추출 (마지막 열)
+            # 출력에서 PID (마지막 열) 추출
             for line in output.splitlines():
                 parts = line.strip().split()
                 if len(parts) > 4 and parts[3] == "LISTENING":
@@ -41,7 +46,7 @@ def get_pid_on_port(port):
         try:
             # lsof -t -i :<port> 명령으로 PID 찾기
             cmd = f'lsof -t -i :{port}'
-            output = subprocess.output = subprocess.check_output(cmd, shell=True, text=True)
+            output = subprocess.check_output(cmd, shell=True, text=True)
             return int(output.strip()) if output.strip() else None
         except Exception as e:
             print(f"PID를 찾는 중 오류 발생 (포트: {port}): {e}")
@@ -49,7 +54,9 @@ def get_pid_on_port(port):
 
 
 def kill_process_by_pid(pid, name="프로세스"):
-    """지정된 PID의 프로세스를 종료합니다."""
+    """
+    지정된 PID의 프로세스를 종료합니다.
+    """
     if pid is None:
         return
 
@@ -64,11 +71,13 @@ def kill_process_by_pid(pid, name="프로세스"):
         print(f"오류: {name} (PID: {pid}) 종료 실패: {e.stderr.strip()}")
     except Exception as e:
         print(f"오류: {name} 종료 중 예기치 않은 오류 발생: {e}")
-    time.sleep(1)  # 프로세스가 완전히 종료될 시간을 잠시 기다림
+    time.sleep(1)
 
 
 def stop_all_servers_forcefully():
-    """FastAPI 및 Streamlit 서버 프로세스를 강제로 종료합니다."""
+    """
+    FastAPI 및 Streamlit 서버 프로세스를 강제로 종료합니다.
+    """
     print("--- 기존 서버 프로세스 강제 종료 시도 ---")
 
     # FastAPI 서버 PID 찾기 및 종료
@@ -83,43 +92,46 @@ def stop_all_servers_forcefully():
 
 
 def start_fastapi():
-    """FastAPI 서버를 시작합니다."""
+    """
+    FastAPI 서버를 시작합니다.
+    chatbot_backend 디렉토리로 이동하여 Uvicorn을 실행합니다.
+    """
     global fastapi_process
-    print(f"FastAPI 서버 ({MAIN_PY_PATH})를 시작합니다...")
+    fastapi_dir = os.path.join(BASE_DIR, "chatbot_backend")
+    if not os.path.exists(fastapi_dir):
+        print(f"오류: 'chatbot_backend' 디렉토리를 찾을 수 없습니다: {fastapi_dir}")
+        return
+
+    print(f"FastAPI 서버 (디렉토리: {fastapi_dir})를 시작합니다...")
+    # 'uvicorn main:app --host 0.0.0.0 --port 8000' 명령을 실행합니다.
+    # cwd를 chatbot_backend 폴더로 설정하여 uvicorn이 main.py를 찾을 수 있게 합니다.
+    cmd = [PYTHON_EXECUTABLE, "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
     if sys.platform == "win32":
-        # 새 콘솔 창에서 실행하여 로그를 볼 수 있게 함
-        fastapi_process = subprocess.Popen(
-            [PYTHON_EXECUTABLE, MAIN_PY_PATH],
-            creationflags=subprocess.CREATE_NEW_CONSOLE
-        )
+        fastapi_process = subprocess.Popen(cmd, cwd=fastapi_dir, creationflags=subprocess.CREATE_NEW_CONSOLE)
     else:
-        # Unix-like 시스템 (Linux, macOS)
-        fastapi_process = subprocess.Popen(
-            [PYTHON_EXECUTABLE, MAIN_PY_PATH]
-        )
+        fastapi_process = subprocess.Popen(cmd, cwd=fastapi_dir)
     print("FastAPI 서버 시작 명령 완료.")
 
 
 def start_streamlit():
-    """Streamlit 앱을 시작합니다."""
+    """
+    Streamlit 앱을 시작합니다.
+    """
     global streamlit_process
-    print(f"Streamlit 앱 ({APP_PY_PATH})을 시작합니다...")
+    print(f"Streamlit 앱 ({STREAMLIT_APP_PATH})을 시작합니다...")
+    cmd = [PYTHON_EXECUTABLE, "-m", "streamlit", "run", STREAMLIT_APP_PATH]
     if sys.platform == "win32":
-        # 새 콘솔 창에서 실행하여 로그를 볼 수 있게 함
-        streamlit_process = subprocess.Popen(
-            [PYTHON_EXECUTABLE, "-m", "streamlit", "run", APP_PY_PATH],
-            creationflags=subprocess.CREATE_NEW_CONSOLE
-        )
+        # 'streamlit run' 명령어도 새 콘솔 창에서 실행하도록 수정합니다.
+        streamlit_process = subprocess.Popen(cmd, creationflags=subprocess.CREATE_NEW_CONSOLE)
     else:
-        # Unix-like 시스템 (Linux, macOS)
-        streamlit_process = subprocess.Popen(
-            [PYTHON_EXECUTABLE, "-m", "streamlit", "run", APP_PY_PATH]
-        )
+        streamlit_process = subprocess.Popen(cmd)
     print("Streamlit 앱 시작 명령 완료.")
 
 
 def stop_managed_servers():
-    """manage_servers.py가 시작한 서버들을 종료합니다."""
+    """
+    manage_servers.py가 시작한 서버들을 종료합니다.
+    """
     print("관리 중인 서버를 종료합니다...")
 
     if fastapi_process and fastapi_process.poll() is None:
@@ -143,7 +155,9 @@ def stop_managed_servers():
 
 
 def signal_handler(sig, frame):
-    """Ctrl+C (SIGINT) 신호를 처리하여 서버를 종료합니다."""
+    """
+    Ctrl+C (SIGINT) 신호를 처리하여 서버를 종료합니다.
+    """
     print("\nCtrl+C 감지. 서버를 종료합니다...")
     stop_managed_servers()
     sys.exit(0)
@@ -182,4 +196,3 @@ if __name__ == "__main__":
         # 스크립트가 어떤 방식으로든 종료될 때 관리 중인 서버를 정리
         stop_managed_servers()
         print("--- 지아 챗봇 서버 관리 스크립트 종료 ---")
-
