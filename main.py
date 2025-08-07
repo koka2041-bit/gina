@@ -1,64 +1,38 @@
-# main.py - 리팩토링된 메인 애플리케이션
-from fastapi import FastAPI
-import uvicorn
-from config import config
-from api.chat import router as chat_router
-from api.story import router as story_router
-from api.code import router as code_router
+# main.py - 앱 초기화 및 라우터 등록
 
-# FastAPI 애플리케이션 초기화
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from API.chat import router as chat_router # 대문자 'API'로 수정
+from API.story import router as story_router # 대문자 'API'로 수정
+from API.code import router as code_router # 대문자 'API'로 수정
+from config import settings # 설정 로드
+
+# FastAPI 앱 인스턴스 생성
 app = FastAPI(
-    title="지아 챗봇 백엔드 (리팩토링 버전)",
-    description="모듈화된 구조로 관리되는 챗봇, 이야기 생성, 코드 생성 시스템",
-    version="3.0.0"
+    title="지아 챗봇 백엔드",
+    description="다양한 AI 모델을 활용한 챗봇 서비스 백엔드",
+    version="1.0.0",
+)
+
+# CORS 미들웨어 설정
+# 특정 출처(origins)에서만 접근을 허용하거나, 모든 출처를 허용할 수 있습니다.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,  # config.py에서 설정된 출처 사용
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # 라우터 등록
-app.include_router(chat_router)
-app.include_router(story_router)
-app.include_router(code_router)
-
+# 각 엔드포인트 파일의 라우터를 앱에 포함시킵니다.
+app.include_router(chat_router, prefix="/chat", tags=["chat"])
+app.include_router(story_router, prefix="/story", tags=["story"])
+app.include_router(code_router, prefix="/code", tags=["code"])
 
 @app.get("/")
-async def read_root():
-    """메인 페이지 - 서비스 상태 및 기능 안내"""
-    return {
-        "message": "🤖 지아 챗봇 백엔드 (리팩토링 버전) 실행 중",
-        "version": "3.0.0",
-        "features": {
-            "chat": {
-                "endpoint": "/api/chat",
-                "description": "통합 채팅 (의도 자동 분류)",
-                "available": True
-            },
-            "story_generation": {
-                "endpoints": ["/api/story/generate", "/api/story/types"],
-                "description": "Gemini API 기반 이야기 생성",
-                "available": config.is_gemini_available
-            },
-            "code_generation": {
-                "endpoints": ["/api/code/generate", "/api/code/models"],
-                "description": "OpenRouter API 기반 코드 생성",
-                "available": config.is_openrouter_available
-            }
-        },
-        "health_check": "/api/health"
-    }
-
-
-if __name__ == "__main__":
-    print("=" * 60)
-    print("🤖 지아 챗봇 백엔드 서버 시작 (리팩토링 버전)")
-    print("=" * 60)
-    print(f"Gemini API: {'✅ 설정됨' if config.is_gemini_available else '❌ 미설정'}")
-    print(f"OpenRouter API: {'✅ 설정됨' if config.is_openrouter_available else '❌ 미설정'}")
-    print("=" * 60)
-    print("📁 모듈 구조:")
-    print("  ├── config.py (설정 관리)")
-    print("  ├── models/ (요청 모델)")
-    print("  ├── services/ (비즈니스 로직)")
-    print("  ├── api/ (API 엔드포인트)")
-    print("  └── utils/ (유틸리티)")
-    print("=" * 60)
-    
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+def read_root():
+    """
+    루트 경로에 대한 기본 응답을 제공합니다.
+    """
+    return {"message": "지아 챗봇 백엔드가 실행 중입니다!"}
