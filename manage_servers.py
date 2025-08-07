@@ -1,4 +1,4 @@
-# manage_servers.py - 새로운 파일 구조에 맞게 수정된 버전
+# manage_servers.py - 출력 리디렉션으로 디버깅
 
 import subprocess
 import os
@@ -6,16 +6,16 @@ import sys
 import time
 import signal
 
-# 현재 스크립트가 실행되는 디렉토리를 기준으로 파일 경로 설정
-# 이 스크립트가 'chatbot_backend' 폴더와 같은 위치에 있다고 가정합니다.
+# 현재 스크립트가 실행되는 디렉토리 (예: F:\VENV)
+# 이 디렉토리가 프로젝트의 루트 디렉토리와 같습니다.
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # FastAPI 앱의 경로와 Streamlit 앱의 경로를 설정합니다.
-# Streamlit 앱은 이 스크립트와 같은 디렉토리에 있다고 가정합니다.
-# FastAPI 앱은 'chatbot_backend' 폴더 안에 있습니다.
+# 새로운 구조에서는 FastAPI와 Streamlit 앱이 BASE_DIR에 바로 있습니다.
+FASTAPI_DIR = BASE_DIR
 STREAMLIT_APP_PATH = os.path.join(BASE_DIR, "app.py")
 
-# 가상 환경의 python 실행 파일 경로를 사용 (스크립트 실행 시 활성화된 가상 환경의 python)
+# 가상 환경의 python 실행 파일 경로를 사용
 PYTHON_EXECUTABLE = sys.executable
 
 fastapi_process = None
@@ -40,6 +40,7 @@ def get_pid_on_port(port):
                     return int(parts[4])
             return None
         except Exception as e:
+            # 포트가 사용 중이 아닐 때 발생하는 오류는 무시합니다.
             print(f"PID를 찾는 중 오류 발생 (포트: {port}): {e}")
             return None
     else:  # Unix-like 시스템 (Linux, macOS)
@@ -94,22 +95,23 @@ def stop_all_servers_forcefully():
 def start_fastapi():
     """
     FastAPI 서버를 시작합니다.
-    chatbot_backend 디렉토리로 이동하여 Uvicorn을 실행합니다.
+    새로운 구조에서는 manage_servers.py와 main.py가 같은 폴더에 있습니다.
     """
     global fastapi_process
-    fastapi_dir = os.path.join(BASE_DIR, "chatbot_backend")
-    if not os.path.exists(fastapi_dir):
-        print(f"오류: 'chatbot_backend' 디렉토리를 찾을 수 없습니다: {fastapi_dir}")
+    if not os.path.exists(os.path.join(FASTAPI_DIR, "main.py")):
+        print(f"오류: 'main.py' 파일을 찾을 수 없습니다: {os.path.join(FASTAPI_DIR, 'main.py')}")
         return
 
-    print(f"FastAPI 서버 (디렉토리: {fastapi_dir})를 시작합니다...")
+    print(f"FastAPI 서버 (디렉토리: {FASTAPI_DIR})를 시작합니다...")
     # 'uvicorn main:app --host 0.0.0.0 --port 8000' 명령을 실행합니다.
-    # cwd를 chatbot_backend 폴더로 설정하여 uvicorn이 main.py를 찾을 수 있게 합니다.
+    # cwd를 FastAPI 앱이 있는 디렉토리로 설정합니다.
+    # PYTHONPATH를 BASE_DIR로 설정하여 파이썬이 모든 모듈을 찾을 수 있도록 합니다.
+    env = os.environ.copy()
+    env["PYTHONPATH"] = BASE_DIR
     cmd = [PYTHON_EXECUTABLE, "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
-    if sys.platform == "win32":
-        fastapi_process = subprocess.Popen(cmd, cwd=fastapi_dir, creationflags=subprocess.CREATE_NEW_CONSOLE)
-    else:
-        fastapi_process = subprocess.Popen(cmd, cwd=fastapi_dir)
+
+    # stdout과 stderr을 부모 프로세스와 연결하여 출력 내용을 즉시 확인할 수 있도록 수정합니다.
+    fastapi_process = subprocess.Popen(cmd, cwd=FASTAPI_DIR, env=env, stdout=sys.stdout, stderr=sys.stderr)
     print("FastAPI 서버 시작 명령 완료.")
 
 
@@ -118,13 +120,15 @@ def start_streamlit():
     Streamlit 앱을 시작합니다.
     """
     global streamlit_process
+    if not os.path.exists(STREAMLIT_APP_PATH):
+        print(f"오류: 'app.py' 파일을 찾을 수 없습니다: {STREAMLIT_APP_PATH}")
+        return
+
     print(f"Streamlit 앱 ({STREAMLIT_APP_PATH})을 시작합니다...")
     cmd = [PYTHON_EXECUTABLE, "-m", "streamlit", "run", STREAMLIT_APP_PATH]
-    if sys.platform == "win32":
-        # 'streamlit run' 명령어도 새 콘솔 창에서 실행하도록 수정합니다.
-        streamlit_process = subprocess.Popen(cmd, creationflags=subprocess.CREATE_NEW_CONSOLE)
-    else:
-        streamlit_process = subprocess.Popen(cmd)
+
+    # Streamlit 앱도 출력을 부모 프로세스로 리디렉션하여 디버깅을 용이하게 합니다.
+    streamlit_process = subprocess.Popen(cmd, stdout=sys.stdout, stderr=sys.stderr)
     print("Streamlit 앱 시작 명령 완료.")
 
 
