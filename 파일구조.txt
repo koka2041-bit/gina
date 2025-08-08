@@ -1,0 +1,55 @@
+📦 경량 모델 자연스런 대화 기능 추가 시 
+
+/프로젝트_루트
+├── MiniCPM-V/        # 경량모델폴더
+├── data/
+│   	 ├─ dialogues.json  ← 전체 대화 저장
+│   	 ├─ tags/
+│   	 │   ├─ 음식.json
+│   	 │   ├─ 감정.json
+│   	 │   ├─ 사건.json
+│   	 │   └─ 관계.json
+│   	 └─ tag_map.json ← 대화와 태그 매핑 정보
+├── utils/
+│   	 ├─ tagger.py        ← 태그 추출 함수
+│   	 ├─ memory_builder.py ← 문맥 생성기
+│   	 └─ summarizer.py    ← 기억 요약
+├── main.py              # FastAPI 메인 진입점 및 라우팅
+├── app.py               # Streamlit 프론트엔드
+├── manage_servers.py    # FastAPI와 Streamlit 서버 관리
+├── api_keys.py          # API 키 관리
+├── API/                 # API 키를 담는 폴더
+│   ├── gemini_api_key.txt
+│   └── openrouter_api_key.txt
+└── services/            # 핵심 비즈니스 로직을 담는 폴더
+    ├── __init__.py      # 파이썬 패키지로 인식하기 위한 파일 (비어있어도 돼)
+    ├── chat_handlers.py # 일반 채팅 처리
+    ├── intent_classifier.py # 사용자 의도 분류
+    ├── story_generator.py   # 이야기 생성 로직
+    └── code_generator.py    # 코드 생성 로직
+
+📦 일반대화 기능 예상
+
+💬 사용자: "나 오늘 파전에 막걸리 먹었어. 역시 비 올 땐 최고야"
+
+→ 저장: 전체 대화에 추가
+→ 태깅: [음식], [기분좋음], [비오는날], [행동-먹음]
+→ 분류 저장: 각 태그에 해당 문장도 저장
+
+💬 사용자: "기분 꿀꿀한데 뭐 먹을까?"
+
+→ 태그 검색: [기분], [음식]
+→ 관련 기억 불러오기: 위 대화 포함
+→ 요약 생성: "예전에 비올 때 파전에 막걸리를 먹고 행복했다고 했음"
+→ 경량 모델에게 전달: 이 맥락으로 응답 유도
+
+
+👣 다음 스텝 제안
+
+1. data/dialogues.json에 전체 대화 저장하는 코드
+
+2. 수동 태깅 구조를 먼저 만들고
+
+3. tag_map.json 구조 정의
+
+4. 간단한 태그 필터링 및 요약 구현
